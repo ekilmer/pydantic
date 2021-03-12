@@ -920,3 +920,77 @@ def test_config_field_info_create_model():
     assert A2.__pydantic_model__.schema()['properties'] == {
         'a': {'title': 'A', 'description': 'descr', 'type': 'string'}
     }
+
+
+def test_docstring():
+    @pydantic.dataclasses.dataclass
+    class NoDoc:
+        """This won't show up unless you use dataclass(description=True)"""
+
+        a: int
+        b: str = dataclasses.field(metadata=dict(title='Field Title', description='Field Description'))
+
+    assert 'description' not in NoDoc.__pydantic_model__.schema()
+    assert NoDoc.__pydantic_model__.schema() == {
+        'title': 'NoDoc',
+        'type': 'object',
+        'properties': {
+            'a': {'title': 'A', 'type': 'integer'},
+            'b': {'title': 'Field Title', 'description': 'Field Description', 'type': 'string'},
+        },
+        'required': ['a', 'b'],
+    }
+
+    @pydantic.dataclasses.dataclass(description=True)
+    class Foo:
+        """This is the Foo description."""
+
+        a: int
+        b: str
+
+    assert 'description' in Foo.__pydantic_model__.schema()
+    assert Foo.__pydantic_model__.schema()['description'] == 'This is the Foo description.'
+
+    @pydantic.dataclasses.dataclass(description=True)
+    class Bar:
+        a: int
+        b: str
+
+    assert 'description' not in Bar.__pydantic_model__.schema()
+
+    @pydantic.dataclasses.dataclass(description=True)
+    class Baz:
+        """Nested schema"""
+
+        foo: Foo
+        bar: Bar
+        age: Optional[int] = dataclasses.field(
+            default=None, metadata=dict(title='The age of the user', description='do not lie!')
+        )
+
+    assert Baz.__pydantic_model__.schema() == {
+        'title': 'Baz',
+        'description': 'Nested schema',
+        'type': 'object',
+        'properties': {
+            'foo': {'$ref': '#/definitions/Foo'},
+            'bar': {'$ref': '#/definitions/Bar'},
+            'age': {'title': 'The age of the user', 'description': 'do not lie!', 'type': 'integer'},
+        },
+        'required': ['foo', 'bar'],
+        'definitions': {
+            'Foo': {
+                'title': 'Foo',
+                'description': 'This is the Foo description.',
+                'type': 'object',
+                'properties': {'a': {'title': 'A', 'type': 'integer'}, 'b': {'title': 'B', 'type': 'string'}},
+                'required': ['a', 'b'],
+            },
+            'Bar': {
+                'title': 'Bar',
+                'type': 'object',
+                'properties': {'a': {'title': 'A', 'type': 'integer'}, 'b': {'title': 'B', 'type': 'string'}},
+                'required': ['a', 'b'],
+            },
+        },
+    }

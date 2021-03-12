@@ -114,6 +114,7 @@ def _process_class(
     unsafe_hash: bool,
     frozen: bool,
     config: Optional[Type[Any]],
+    description: bool = False,
 ) -> Type['Dataclass']:
     import dataclasses
 
@@ -155,6 +156,13 @@ def _process_class(
         globals()[uniq_class_name] = _cls
     else:
         _cls.__post_init__ = _pydantic_post_init
+
+    doc_description: Optional[str] = None
+    if description:
+        from inspect import getdoc
+
+        doc_description = getdoc(_cls)
+
     cls: Type['Dataclass'] = dataclasses.dataclass(  # type: ignore
         _cls, init=init, repr=repr, eq=eq, order=order, unsafe_hash=unsafe_hash, frozen=frozen
     )
@@ -195,6 +203,9 @@ def _process_class(
 
     if cls.__pydantic_model__.__config__.validate_assignment and not frozen:
         cls.__setattr__ = setattr_validate_assignment  # type: ignore[assignment]
+
+    if doc_description is not None:
+        cls.__pydantic_model__.__doc__ = doc_description
 
     return cls
 
@@ -238,16 +249,17 @@ def dataclass(
     unsafe_hash: bool = False,
     frozen: bool = False,
     config: Type[Any] = None,
+    description: bool = False,
 ) -> Union[Callable[[Type[Any]], Type['Dataclass']], Type['Dataclass']]:
     """
     Like the python standard lib dataclasses but with type validation.
 
     Arguments are the same as for standard dataclasses, except for validate_assignment which has the same meaning
-    as Config.validate_assignment.
+    as Config.validate_assignment and description which will parse the class's docstring.
     """
 
     def wrap(cls: Type[Any]) -> Type['Dataclass']:
-        return _process_class(cls, init, repr, eq, order, unsafe_hash, frozen, config)
+        return _process_class(cls, init, repr, eq, order, unsafe_hash, frozen, config, description)
 
     if _cls is None:
         return wrap
